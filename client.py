@@ -1,21 +1,54 @@
 #!/usr/bin/env python
 
 import socket
+import sys
+import constants as c
 
 
 TCP_IP = '127.0.0.1'
-TCP_PORT = 52585
+TCP_PORT = 0
+
+#Getting TCP port
+if (sys.argv.__len__() < 2):
+    with open("port.txt", "r") as file:
+        TCP_PORT = int(file.read())
+else:
+    TCP_PORT = int(sys.argv[1])
+
 BUFFER_SIZE = 1024
-MESSAGE = "Hello, World!"
+# MESSAGE = str(c.SEND_CHAT) + " Hello, World!"
+message = ''
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((TCP_IP, TCP_PORT))
-s.send(MESSAGE.encode('utf-8'))
-data = s.recv(BUFFER_SIZE)
+# s.send(MESSAGE.encode('utf-8'))
+# data = s.recv(BUFFER_SIZE)
 
 while True:
-    pass
+    message = input("Enter a command: ")
+
+    message = message.split()
+    message[0] = message[0].lower()
+
+    if message[0] == "leave":
+        message = str(c.LEAVE)
+    elif message[0] == "file":
+        message = str(c.REQUEST_FILE) + " " + message[1]
+
+    if message != '':
+        s.send(message.encode('utf-8'))
+        if message == str(c.LEAVE):
+            print("Closing connection.")
+            break
+
+    # data = s.recv(BUFFER_SIZE)
+    # print("received data: " + data.decode('utf-8'))
+
+#     data = s.recv(BUFFER_SIZE)
+#     if data:
+#         print("received data: " + data.decode('utf-8'))
+#         s.send(data)
+#     pass
 
 s.close()
 
-print("received data: " + data.decode('utf-8'))
