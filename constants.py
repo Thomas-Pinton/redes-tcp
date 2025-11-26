@@ -1,3 +1,5 @@
+# codigos
+
 LEAVE = 1
 REQUEST_FILE = 2
 SEND_FILE = 3
@@ -5,3 +7,7 @@ SEND_CHAT = 4
 SEND_FILE_START = 5
 SEND_FILE_END = 6
 ERROR = 0
+
+# - - -
+
+CHUNK_SIZE = 4096

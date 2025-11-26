@@ -5,6 +5,7 @@ import sys
 import constants as c
 from hashlib import sha256
 from pathlib import Path
+import struct
 
 TCP_IP = '127.0.0.1'
 TCP_PORT = 0
@@ -32,10 +33,19 @@ def getFile(filename):
         return bytes, hash
     
 def writeFile(data):
-    byte_data = b'Quick byte writing'
+    byte_data = data
     Path("media/received/" + targetFile).write_bytes(byte_data)   
 
-targetFile = "foto1.jpg"
+targetFile = "foto2.jpg"
+
+def recv_exact(s, n):
+    data = b""
+    while len(data) < n:
+        chunk = s.recv(n - len(data))
+        if chunk:
+            data += chunk
+    return data
+
 
 while True:
 
@@ -48,7 +58,7 @@ while True:
         message = str(c.LEAVE)
     elif message[0] == "file":
         if message.__len__() < 2:
-            message = str(c.REQUEST_FILE) + " " + "foto1.jpg"
+            message = str(c.REQUEST_FILE) + " " + targetFile
         else:
             message = str(c.REQUEST_FILE) + " " + message[1]
             targetFile = message[1]
@@ -60,18 +70,32 @@ while True:
             break
 
     file = b''
+    fileSize = 0
+    totalReceived = 0
+
+    data = recv_exact(s, 9)
+
+    if int(data[0]) == c.SEND_FILE_START:
+        fileSize = struct.unpack("!Q", data[1:9])[0]
+        print("File size: ", fileSize)
+
     while True:
         data = s.recv(BUFFER_SIZE)
         if data:
-            print(data[0])
-            if int(data[0]) == c.SEND_FILE:
-                file += bytes(data[1:])
-                print("Receiving file")
-                print("Chunk size: ", len(data[1:]))
-            elif int(data[0]) == c.SEND_FILE_END:
-                print("File received")
-                writeFile(file)
-                break
+            # if int(data[0]) == c.SEND_FILE:
+            file += bytes(data)
+            totalReceived += len(data)
+            print(totalReceived)
+            # print("Receiving file")
+            # print("Chunk size: ", len(data[1:]))
+            # elif int(data[0]) == c.SEND_FILE_END:
+            #     print("File received")
+            #     writeFile(file)
+            #     break
+        if fileSize == totalReceived:
+            print("File received")
+            writeFile(file)
+            break
 
             
 s.close()
