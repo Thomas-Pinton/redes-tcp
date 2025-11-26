@@ -52,13 +52,13 @@ class Server(threading.Thread):
             print("   file requested: " + self.data[1])
             file, hash = self.getFile(self.data[1])
             print("File SHA-256: " + hash.hexdigest())
-            print(file[0])
-            print(file[1])
-            print(file[2])
-            print(len(file))
+            # print(file[0])
+            # print(file[1])
+            # print(file[2])
+            # print(len(file))
 
-            self.conn.send( (str(c.SEND_FILE_START) ).encode('utf-8') ) # TODO colocar metadados
-            time.sleep(0.005)
+            self.conn.send( bytes([c.SEND_FILE_START]) ) # TODO colocar metadados
+            time.sleep(0.001)
 
             pos = 0
             header = bytes([c.SEND_FILE])
@@ -66,8 +66,11 @@ class Server(threading.Thread):
                 chunk = file[pos: pos + MTU]
                 self.conn.send( header + chunk )
                 pos += MTU
-                time.sleep(0.005)
-                print("Sending file: " + str(pos) + " / " + str(len(file)))
+                time.sleep(0.001)
+                print("Sending file: " + str(pos) + " / " + str(len(file)/MTU))
+                print("Chunk size", len(chunk))
+
+            self.conn.send( bytes([c.SEND_FILE_END]) ) 
             print("File sent")
 
 
