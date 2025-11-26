@@ -3,6 +3,7 @@
 import socket
 import sys
 import constants as c
+from hashlib import sha256
 
 
 TCP_IP = '127.0.0.1'
@@ -24,6 +25,12 @@ s.connect((TCP_IP, TCP_PORT))
 # s.send(MESSAGE.encode('utf-8'))
 # data = s.recv(BUFFER_SIZE)
 
+def getFile(filename):
+    with open("media/" + filename,"rb") as f:
+        bytes = f.read() # read entire file as bytes
+        hash = sha256(bytes)
+        return bytes, hash
+
 while True:
     message = input("Enter a command: ")
 
@@ -33,7 +40,10 @@ while True:
     if message[0] == "leave":
         message = str(c.LEAVE)
     elif message[0] == "file":
-        message = str(c.REQUEST_FILE) + " " + message[1]
+        if message.__len__() < 2:
+            message = str(c.REQUEST_FILE) + " " + "foto1.jpg"
+        else:
+            message = str(c.REQUEST_FILE) + " " + message[1]
 
     if message != '':
         s.send(message.encode('utf-8'))
@@ -41,14 +51,14 @@ while True:
             print("Closing connection.")
             break
 
-    # data = s.recv(BUFFER_SIZE)
-    # print("received data: " + data.decode('utf-8'))
+    file = b''
+    while True:
+        data = s.recv(BUFFER_SIZE)
+        if data:
+            print(data[0])
+            if int(data[0]) == c.SEND_FILE:
+                file += bytes(data[1:])
+                print("Receiving file")
 
-#     data = s.recv(BUFFER_SIZE)
-#     if data:
-#         print("received data: " + data.decode('utf-8'))
-#         s.send(data)
-#     pass
-
+            
 s.close()
-

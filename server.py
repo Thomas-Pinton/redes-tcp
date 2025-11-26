@@ -1,15 +1,14 @@
-#!/usr/bin/env python
-
 import socket
 import threading
 import time
 import constants as c
+from hashlib import sha256
 
-print("Test")
 
 TCP_IP = '127.0.0.1'
 TCP_PORT = 0 # OS will pick a free port
 BUFFER_SIZE = 1234
+MTU = 1000
 
 class Server(threading.Thread):
 
@@ -38,10 +37,39 @@ class Server(threading.Thread):
             #     self.conn.send(data)  # echo
         self.conn.close()
 
+
+    def getFile(self, filename):
+        with open("media/" + filename,"rb") as f:
+            bytes = f.read() # read entire file as bytes
+            hash = sha256(bytes)
+            return bytes, hash
+
     def handleData(self):
-        if (self.data[0] == int(c.REQUEST_FILE)):
+        print(self.data)
+        print(self.data[0])
+        print(c.REQUEST_FILE)
+        if (int(self.data[0]) == c.REQUEST_FILE):
             print("   file requested: " + self.data[1])
-        pass
+            file, hash = self.getFile(self.data[1])
+            print("File SHA-256: " + hash.hexdigest())
+            print(file[0])
+            print(file[1])
+            print(file[2])
+            print(len(file))
+
+            self.conn.send( (str(c.SEND_FILE_START) ).encode('utf-8') ) # TODO colocar metadados
+            time.sleep(0.005)
+
+            pos = 0
+            header = bytes([c.SEND_FILE])
+            while pos + MTU < len(file):
+                chunk = file[pos: pos + MTU]
+                self.conn.send( header + chunk )
+                pos += MTU
+                time.sleep(0.005)
+                print("Sending file: " + str(pos) + " / " + str(len(file)))
+            print("File sent")
+
 
 class SocketHandler(threading.Thread):
 
