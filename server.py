@@ -4,11 +4,14 @@ import time
 import constants as c
 from hashlib import sha256
 import struct
+import os
 
 
 TCP_IP = '127.0.0.1'
 TCP_PORT = 0 # OS will pick a free port
 BUFFER_SIZE = 1234
+
+threads = []
 
 class Server(threading.Thread):
 
@@ -39,36 +42,42 @@ class Server(threading.Thread):
 
 
     def getFile(self, filename):
+        path = os.path.join("media", filename)
+
+        if not os.path.exists(path):
+            self.conn.send( bytes([c.SEND_FILE_NOT_FOUND]) )
+            return None, None
+
         with open("media/" + filename,"rb") as f:
-            bytes = f.read() # read entire file as bytes
-            hash = sha256(bytes)
-            return bytes, hash
+            fileBytes = f.read() # read entire file as bytes
+            hash = sha256(fileBytes)
+            return fileBytes, hash
 
     def handleData(self):
         print(self.data)
         print(self.data[0])
         print(c.REQUEST_FILE)
+
         if (int(self.data[0]) == c.REQUEST_FILE):
             print("   file requested: " + self.data[1])
+
             file, hash = self.getFile(self.data[1])
+            if file is None:
+                print("File not found")
+                return
+
             print("File SHA-256: " + hash.hexdigest())
-            # print(file[0])
-            # print(file[1])
-            # print(file[2])
             print(len(file))
 
-            self.conn.send( bytes([c.SEND_FILE_START]) + struct.pack("!Q", len(file)) ) # TODO colocar metadados
+            self.conn.send( bytes([c.SEND_FILE_START]) + struct.pack("!Q", len(file)) + hash.digest() ) 
             time.sleep(0.01)
 
-            pos = 0
             self.conn.send( file )
-            # while pos + c.CHUNK_SIZE < len(file):
-            #     chunk = file[pos: pos + c.CHUNK_SIZE]
-            #     self.conn.send( chunk )
-            #     pos += c.CHUNK_SIZE
-
-            # self.conn.send( bytes([c.SEND_FILE_END]) ) 
             print("File sent")
+
+        elif (int(self.data[0]) == c.SEND_CHAT):
+            chat_message = ' '.join(self.data[1:])
+            print("   chat message received: " + chat_message)
 
 
 class SocketHandler(threading.Thread):
@@ -87,17 +96,34 @@ class SocketHandler(threading.Thread):
         while True:
             conn, addr = self.s.accept()
             global threads
-            Server(conn, id).start()
+            thread = Server(conn, id)
+            thread.start()
+            threads.append(thread)
             id += 1
             print('Connection address: ' + addr[0])
+
+
+class InputHandler(threading.Thread):
+    def run(self):
+        while True:
+            message = input("Send a message: ")
+            print("You entered: " + message)
+            global threads
+            for t in threads:
+                if t.is_alive():
+                    t.conn.send(bytes([c.SEND_CHAT]) + message.encode('utf-8') )
 
 
 def main():
 
     t1 = SocketHandler()
+    t2 = InputHandler()
+
     t1.start()
+    t2.start()
 
     t1.join()
+    t2.join()
 
     # threads = [t1]
 

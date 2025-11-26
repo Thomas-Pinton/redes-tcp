@@ -1,14 +1,18 @@
-#!/usr/bin/env python
-
 import socket
 import sys
 import constants as c
 from hashlib import sha256
 from pathlib import Path
 import struct
+import threading
 
 TCP_IP = '127.0.0.1'
 TCP_PORT = 0
+BUFFER_SIZE = 1234
+
+targetFile = "foto2.jpg"
+
+command = ''
 
 #Getting TCP port
 if (sys.argv.__len__() < 2):
@@ -17,14 +21,8 @@ if (sys.argv.__len__() < 2):
 else:
     TCP_PORT = int(sys.argv[1])
 
-BUFFER_SIZE = 1234
-# MESSAGE = str(c.SEND_CHAT) + " Hello, World!"
-message = ''
-
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((TCP_IP, TCP_PORT))
-# s.send(MESSAGE.encode('utf-8'))
-# data = s.recv(BUFFER_SIZE)
 
 def getFile(filename):
     with open("media/" + filename,"rb") as f:
@@ -33,10 +31,10 @@ def getFile(filename):
         return bytes, hash
     
 def writeFile(data):
+    global targetFile
     byte_data = data
     Path("media/received/" + targetFile).write_bytes(byte_data)   
 
-targetFile = "foto2.jpg"
 
 def recv_exact(s, n):
     data = b""
@@ -46,56 +44,82 @@ def recv_exact(s, n):
             data += chunk
     return data
 
-
-while True:
-
-    message = input("Enter a command: ")
-
-    message = message.split()
-    message[0] = message[0].lower()
-
-    if message[0] == "leave":
-        message = str(c.LEAVE)
-    elif message[0] == "file":
-        if message.__len__() < 2:
-            message = str(c.REQUEST_FILE) + " " + targetFile
-        else:
-            message = str(c.REQUEST_FILE) + " " + message[1]
-            targetFile = message[1]
-
-    if message != '':
-        s.send(message.encode('utf-8'))
-        if message == str(c.LEAVE):
-            print("Closing connection.")
-            break
-
+def handleSendFile():
     file = b''
     fileSize = 0
+    hash = ''
     totalReceived = 0
+    fileSize = struct.unpack("!Q", recv_exact(s, 8))[0]
+    print("File size: ", fileSize)
 
-    data = recv_exact(s, 9)
-
-    if int(data[0]) == c.SEND_FILE_START:
-        fileSize = struct.unpack("!Q", data[1:9])[0]
-        print("File size: ", fileSize)
+    hash = recv_exact(s, 32)
 
     while True:
         data = s.recv(BUFFER_SIZE)
         if data:
-            # if int(data[0]) == c.SEND_FILE:
             file += bytes(data)
             totalReceived += len(data)
             print(totalReceived)
-            # print("Receiving file")
-            # print("Chunk size: ", len(data[1:]))
-            # elif int(data[0]) == c.SEND_FILE_END:
-            #     print("File received")
-            #     writeFile(file)
-            #     break
+
         if fileSize == totalReceived:
             print("File received")
-            writeFile(file)
             break
 
-            
-s.close()
+    if hash == sha256(file).digest():
+        print("File integrity verified")         
+    writeFile(file)
+
+
+def handleInput():
+    while True:
+        data = recv_exact(s, 1)
+
+        print(data)
+
+        if int(data[0]) == c.SEND_FILE_START:
+            handleSendFile()
+        elif int(data[0]) == c.SEND_CHAT:
+            chat_message = s.recv(BUFFER_SIZE).decode('utf-8')
+            print("Chat message received: " + chat_message)
+
+
+def handleOutput():
+    global targetFile
+    while True:
+        command = input("Enter a command: ")
+
+        command = command.split()
+        command[0] = command[0].lower()
+
+        message = ''
+
+        if command[0] == "leave":
+            message = str(c.LEAVE)
+        elif command[0] == "file":
+            if command.__len__() < 2:
+                message = str(c.REQUEST_FILE) + " " + targetFile
+            else:
+                message = str(c.REQUEST_FILE) + " " + command[1]
+                targetFile = command[1]
+        elif command[0] == "chat":
+            newCommand = [str(x) for x in command[1:]]
+            message = str(c.SEND_CHAT) + " " + ' '.join(newCommand)
+            print(message) 
+
+        if message != '':
+            s.send(message.encode('utf-8'))
+            if command == str(c.LEAVE):
+                print("Closing connection.")
+                s.close()
+                return
+
+thread1 = threading.Thread(target=handleInput)
+thread2 = threading.Thread(target=handleOutput)
+
+# Start the threads
+thread1.start()
+thread2.start()
+
+# Wait for both threads to finish
+thread1.join()
+thread2.join()
