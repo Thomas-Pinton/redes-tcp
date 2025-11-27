@@ -45,7 +45,7 @@ class Server(threading.Thread):
         path = os.path.join("media", filename)
 
         if not os.path.exists(path):
-            self.conn.send( bytes([c.SEND_FILE_NOT_FOUND]) )
+            self.conn.send( bytes([c.ERROR_FILE_NOT_FOUND]) )
             return None, None
 
         with open("media/" + filename,"rb") as f:
@@ -54,9 +54,6 @@ class Server(threading.Thread):
             return fileBytes, hash
 
     def handleData(self):
-        print(self.data)
-        print(self.data[0])
-        print(c.REQUEST_FILE)
 
         if (int(self.data[0]) == c.REQUEST_FILE):
             print("   file requested: " + self.data[1])
@@ -106,12 +103,23 @@ class SocketHandler(threading.Thread):
 class InputHandler(threading.Thread):
     def run(self):
         while True:
-            message = input("Send a message: ")
-            print("You entered: " + message)
+            message = input("")
+            message = message.split(' ', 1)
+            print("You entered: " + message[1])
+
             global threads
-            for t in threads:
-                if t.is_alive():
-                    t.conn.send(bytes([c.SEND_CHAT]) + message.encode('utf-8') )
+
+            if int(message[0]) == -1:
+                for t in threads:
+                    if t.is_alive():
+                        t.conn.send(bytes([c.SEND_CHAT]) + message[1].encode('utf-8') )
+            else:
+                if len(threads) > int(message[0]) and threads[int(message[0])].is_alive():
+                    threads[int(message[0])].conn.send( bytes([c.SEND_CHAT]) + message[1].encode('utf-8') )
+                else: 
+                    print("No such connection id: " + message[0])
+            
+
 
 
 def main():
